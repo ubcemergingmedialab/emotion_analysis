@@ -2,7 +2,7 @@
 
 A local emotion lexicon built from two research datasets, plus a browser viewer for exploring word→emotion profiles. The goal is fast, offline sentiment-style analysis — for example, mapping words in an Unreal Engine room to lighting colors without making web requests.
 
-![Emotion lexicon viewer](docs/emotions.gif)
+![Emotion lexicon viewer](docs/Emotions.gif)
 
 ## What’s in this repo
 
