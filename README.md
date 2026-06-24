@@ -2,6 +2,8 @@
 
 A local emotion lexicon built from two research datasets, plus a browser viewer for exploring word→emotion profiles. The goal is fast, offline sentiment-style analysis — for example, mapping words in an Unreal Engine room to lighting colors without making web requests.
 
+![Emotion lexicon viewer](docs/emotions.gif)
+
 ## What’s in this repo
 
 | Path | Description |
@@ -76,7 +78,8 @@ emotion_dataset/
 │   ├── CR4NarrEmote_All.csv
 │   └── CR4NarrEmote_ReadMe.txt
 ├── docs/
-│   └── dataset-processing.md
+│   ├── dataset-processing.md
+│   └── emotions.gif           # viewer demo
 ├── viewer/
 │   ├── index.html
 │   ├── styles.css
