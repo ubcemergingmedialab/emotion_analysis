@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emotion Lexicon — Hexagon Viewer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="header">
+    <div>
+      <h1>Emotion Lexicon Viewer</h1>
+      <p class="subtitle">Six-emotion hexagon plot for each word in the lexicon</p>
+    </div>
+    <label class="file-btn">
+      Load CSV
+      <input type="file" id="file-input" accept=".csv" hidden />
+    </label>
+  </header>
+
+  <section class="toolbar">
+    <input type="search" id="search" placeholder="Search words…" autocomplete="off" />
+    <select id="emotion-filter">
+      <option value="">All emotions</option>
+      <option value="joy">Joy</option>
+      <option value="sadness">Sadness</option>
+      <option value="anger">Anger</option>
+      <option value="fear">Fear</option>
+      <option value="love">Love</option>
+      <option value="surprise">Surprise</option>
+    </select>
+    <select id="sort-by">
+      <option value="word">Sort: A → Z</option>
+      <option value="confidence-desc">Sort: Confidence ↓</option>
+      <option value="occurrences-desc">Sort: Occurrences ↓</option>
+    </select>
+    <span id="count-label" class="count-label"></span>
+  </section>
+
+  <main class="layout">
+    <aside class="detail-panel" id="detail-panel">
+      <p class="placeholder">Select a word from the grid or search to inspect its emotion hexagon.</p>
+    </aside>
+    <div class="grid-wrap">
+      <div id="grid" class="grid"></div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span id="status">Loading lexicon…</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

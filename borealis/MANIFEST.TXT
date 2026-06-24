@@ -1,0 +1,4 @@
+CR4NarrEmote_Screenshots.pdf (application/pdf) 2276575 bytes.
+CR4NarrEmote_ReadMe.txt (text/plain) 2064 bytes.
+CR4NarrEmote_All.csv (text/csv) 53511582 bytes.
+CR4NarrEmote_t1Yes.csv (text/csv) 61827621 bytes.
