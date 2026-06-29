@@ -10,11 +10,24 @@ const EMOTIONS = [
 const EMOTION_KEYS = EMOTIONS.map((e) => e.key);
 const DETAIL_SIZE = 150;
 const ANIMATION_MS = 420;
+const LIGHT_COUNT = 8;
+const LIGHT_META = [
+  { label: "Joy", type: "emotion", index: 0 },
+  { label: "Surprise", type: "emotion", index: 1 },
+  { label: "Love", type: "emotion", index: 2 },
+  { label: "Fear", type: "emotion", index: 3 },
+  { label: "Anger", type: "emotion", index: 4 },
+  { label: "Sadness", type: "emotion", index: 5 },
+  { label: "Blend", type: "blend" },
+  { label: "Warmth", type: "warmth" },
+];
 
 const state = {
   rows: [],
   filtered: [],
   selectedWord: null,
+  roomWords: [],
+  lightStrategyId: LightStrategies.defaultId,
 };
 
 const detailUi = {
@@ -26,14 +39,37 @@ const detailUi = {
   color: null,
 };
 
+const followUi = {
+  enabled: false,
+  currentTop: 0,
+  currentLeft: 0,
+  targetTop: 0,
+  targetLeft: 0,
+  frame: null,
+};
+
+const FOLLOW_EASE = 0.14;
+const FOLLOW_MARGIN = 12;
+const DESKTOP_MQ = window.matchMedia("(min-width: 901px)");
+
 const gridEl = document.getElementById("grid");
 const detailPanelEl = document.getElementById("detail-panel");
+const sidebarPanelEl = document.getElementById("sidebar-panel");
+const detailPanelSlotEl = document.getElementById("detail-panel-slot");
 const searchEl = document.getElementById("search");
 const emotionFilterEl = document.getElementById("emotion-filter");
 const sortByEl = document.getElementById("sort-by");
 const countLabelEl = document.getElementById("count-label");
 const statusEl = document.getElementById("status");
 const fileInputEl = document.getElementById("file-input");
+const lightGridEl = document.getElementById("light-grid");
+const wordTrayEl = document.getElementById("word-tray");
+const clearRoomBtn = document.getElementById("clear-room");
+const blendReadoutEl = document.getElementById("blend-readout");
+const lightStrategyEl = document.getElementById("light-strategy");
+const lightStrategySummaryEl = document.getElementById("light-strategy-summary");
+
+const LIGHT_STRATEGY_STORAGE_KEY = "emotion-viewer-light-strategy";
 
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/);
@@ -123,6 +159,249 @@ function lerpColor(fromHex, toHex, t) {
   const g = Math.round(from.g + (to.g - from.g) * t);
   const b = Math.round(from.b + (to.b - from.b) * t);
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+function createLightStrategyContext() {
+  return LightStrategies.createContext(
+    state.roomWords,
+    state.rows,
+    EMOTIONS,
+    EMOTION_KEYS,
+    LIGHT_META,
+  );
+}
+
+function getActiveLightStrategy() {
+  return LightStrategies.get(state.lightStrategyId);
+}
+
+function computeRoomLighting() {
+  return LightStrategies.computeLights(getActiveLightStrategy(), createLightStrategyContext());
+}
+
+function updateLightStrategySummary() {
+  if (!lightStrategySummaryEl) {
+    return;
+  }
+  lightStrategySummaryEl.textContent = getActiveLightStrategy().summary;
+}
+
+function setLightStrategy(strategyId) {
+  state.lightStrategyId = LightStrategies.get(strategyId).id;
+  localStorage.setItem(LIGHT_STRATEGY_STORAGE_KEY, state.lightStrategyId);
+  if (lightStrategyEl) {
+    lightStrategyEl.value = state.lightStrategyId;
+  }
+  updateLightStrategySummary();
+  renderLightRoom();
+}
+
+function initLightStrategy() {
+  if (!lightStrategyEl) {
+    return;
+  }
+
+  const saved = localStorage.getItem(LIGHT_STRATEGY_STORAGE_KEY);
+  if (saved && LightStrategies.get(saved).id === saved) {
+    state.lightStrategyId = saved;
+  }
+
+  lightStrategyEl.replaceChildren();
+  for (const strategy of LightStrategies.all) {
+    const option = document.createElement("option");
+    option.value = strategy.id;
+    option.textContent = strategy.label;
+    lightStrategyEl.appendChild(option);
+  }
+
+  lightStrategyEl.value = state.lightStrategyId;
+  updateLightStrategySummary();
+  lightStrategyEl.addEventListener("change", () => {
+    setLightStrategy(lightStrategyEl.value);
+  });
+}
+
+function applyLightState(bulbEl, stateForLight) {
+  bulbEl.style.setProperty("--light-color", stateForLight.color);
+  bulbEl.style.setProperty("--light-opacity", String(stateForLight.opacity));
+}
+
+function renderLightGrid() {
+  if (!lightGridEl) {
+    return;
+  }
+
+  const { lights: states } = computeRoomLighting();
+
+  if (lightGridEl.childElementCount !== LIGHT_COUNT) {
+    lightGridEl.replaceChildren();
+    for (const lightState of states) {
+      const cell = document.createElement("div");
+      cell.className = "light-cell";
+
+      const bulb = document.createElement("div");
+      bulb.className = "light-bulb";
+      bulb.setAttribute("role", "img");
+      bulb.setAttribute("aria-label", `${lightState.label} light`);
+
+      const label = document.createElement("span");
+      label.className = "light-label";
+      label.textContent = lightState.label;
+
+      cell.append(bulb, label);
+      lightGridEl.appendChild(cell);
+    }
+  }
+
+  lightGridEl.querySelectorAll(".light-cell").forEach((cell, index) => {
+    const bulb = cell.querySelector(".light-bulb");
+    const label = cell.querySelector(".light-label");
+    const lightState = states[index];
+
+    applyLightState(bulb, lightState);
+    label.textContent = lightState.label;
+    bulb.setAttribute("aria-label", lightState.ariaLabel ?? `${lightState.label} light`);
+    cell.classList.toggle("light-cell-empty", Boolean(lightState.empty));
+  });
+}
+
+function renderBlendReadout() {
+  if (!blendReadoutEl) {
+    return;
+  }
+
+  const { aggregate, lights, readout } = computeRoomLighting();
+
+  if (readout.mode === "scoreboard") {
+    if (readout.slots.length === 0) {
+      blendReadoutEl.textContent = readout.headline;
+      return;
+    }
+
+    const slotLines = readout.slots
+      .map(
+        (slot) =>
+          `<div><span class="blend-swatch" style="background:${slot.color}"></span><strong>${slot.slot}:</strong> ${escapeHtml(slot.word)} <span class="readout-muted">(${escapeHtml(slot.emotion)})</span></div>`,
+      )
+      .join("");
+
+    blendReadoutEl.innerHTML = `
+      <div><strong>Scoreboard:</strong> ${escapeHtml(readout.headline)}</div>
+      ${slotLines}
+      ${
+        readout.overflowNote
+          ? `<div class="readout-muted">${escapeHtml(readout.overflowNote)}</div>`
+          : ""
+      }
+    `;
+    return;
+  }
+
+  if (!aggregate) {
+    blendReadoutEl.textContent = readout.blendLabel;
+    return;
+  }
+
+  const blendColor = lights[6].color;
+
+  blendReadoutEl.innerHTML = `
+    <div>
+      <span class="blend-swatch" style="background:${blendColor}"></span>
+      <strong>Room blend:</strong> ${escapeHtml(readout.blendLabel)}
+    </div>
+    <div><strong>Dominant:</strong> ${escapeHtml(readout.dominantLabel)}</div>
+    ${
+      readout.newestLabel
+        ? `<div><strong>Newest:</strong> ${escapeHtml(readout.newestLabel)}</div>`
+        : ""
+    }
+    ${
+      readout.vadLabel
+        ? `<div><strong>Avg VAD:</strong> ${readout.vadLabel}</div>`
+        : ""
+    }
+  `;
+}
+
+function renderWordTray() {
+  if (!wordTrayEl) {
+    return;
+  }
+
+  if (state.roomWords.length === 0) {
+    wordTrayEl.innerHTML = '<p class="word-tray-empty">No words in the room yet.</p>';
+    clearRoomBtn.disabled = true;
+    return;
+  }
+
+  clearRoomBtn.disabled = false;
+  wordTrayEl.replaceChildren();
+
+  for (const word of state.roomWords) {
+    const row = state.rows.find((entry) => entry.word === word);
+    const chip = document.createElement("div");
+    chip.className = "word-chip";
+
+    const dot = document.createElement("span");
+    dot.className = "word-chip-dot";
+    dot.style.background = row ? emotionFill(row.primaryEmotion) : "#7c9cff";
+
+    const label = document.createElement("span");
+    label.className = "word-chip-label";
+    label.textContent = word;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "word-chip-remove";
+    removeBtn.setAttribute("aria-label", `Remove ${word}`);
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      removeRoomWord(word);
+    });
+
+    chip.append(dot, label, removeBtn);
+    wordTrayEl.appendChild(chip);
+  }
+}
+
+function renderLightRoom() {
+  renderLightGrid();
+  renderWordTray();
+  renderBlendReadout();
+  syncDetailPanelSlot();
+}
+
+function toggleRoomWord(word) {
+  const index = state.roomWords.indexOf(word);
+  if (index >= 0) {
+    state.roomWords.splice(index, 1);
+  } else {
+    state.roomWords.push(word);
+  }
+  renderLightRoom();
+}
+
+function removeRoomWord(word) {
+  state.roomWords = state.roomWords.filter((entry) => entry !== word);
+  renderLightRoom();
+  renderGrid();
+}
+
+function clearRoom() {
+  state.roomWords = [];
+  renderLightRoom();
+  renderGrid();
+}
+
+function initLightRoom() {
+  if (!lightGridEl) {
+    return;
+  }
+
+  initLightStrategy();
+  clearRoomBtn?.addEventListener("click", clearRoom);
+  renderLightRoom();
 }
 
 function easeInOutCubic(t) {
@@ -427,25 +706,34 @@ function renderGrid() {
     if (row.word === state.selectedWord) {
       card.classList.add("selected");
     }
+    if (state.roomWords.includes(row.word)) {
+      card.classList.add("in-room");
+    }
 
     card.appendChild(createHexagonSvg(row, 72));
+    const roomBadge = state.roomWords.includes(row.word)
+      ? '<p class="card-room-badge">In room</p>'
+      : "";
     card.insertAdjacentHTML(
       "beforeend",
       `<p class="card-word">${escapeHtml(row.word)}</p>
-       <p class="card-tag">${escapeHtml(row.primaryEmotion)} · ${Math.round(row.confidence * 100)}%</p>`,
+       <p class="card-tag">${escapeHtml(row.primaryEmotion)} · ${Math.round(row.confidence * 100)}%</p>
+       ${roomBadge}`,
     );
 
     card.addEventListener("click", () => {
-      if (state.selectedWord === row.word) {
-        return;
+      toggleRoomWord(row.word);
+      if (state.selectedWord !== row.word) {
+        state.selectedWord = row.word;
+        renderDetail();
       }
-      state.selectedWord = row.word;
       renderGrid();
-      renderDetail();
     });
 
     gridEl.appendChild(card);
   }
+
+  scheduleFollowUpdate();
 }
 
 function renderDetail() {
@@ -455,6 +743,7 @@ function renderDetail() {
     resetDetailShell();
     detailPanelEl.innerHTML =
       '<p class="placeholder">Select a word from the grid or search to inspect its emotion hexagon.</p>';
+    syncDetailPanelSlot();
     return;
   }
 
@@ -478,6 +767,113 @@ function renderDetail() {
   }
 
   detailUi.lastWord = row.word;
+  syncDetailPanelSlot();
+}
+
+function syncDetailPanelSlot() {
+  if (!detailPanelSlotEl || !sidebarPanelEl) {
+    return;
+  }
+  detailPanelSlotEl.style.height = `${sidebarPanelEl.offsetHeight}px`;
+  scheduleFollowUpdate();
+}
+
+function computeFollowTarget() {
+  const footer = document.querySelector(".footer");
+  const slotRect = detailPanelSlotEl.getBoundingClientRect();
+  const panelHeight = sidebarPanelEl.offsetHeight;
+  const footerTop = footer.getBoundingClientRect().top;
+
+  let targetTop = slotRect.top;
+  if (targetTop < FOLLOW_MARGIN) {
+    targetTop = FOLLOW_MARGIN;
+  }
+
+  const maxTop = footerTop - panelHeight - FOLLOW_MARGIN;
+  if (targetTop > maxTop) {
+    targetTop = Math.max(FOLLOW_MARGIN, maxTop);
+  }
+
+  return {
+    top: targetTop,
+    left: slotRect.left,
+  };
+}
+
+function applyFollowPosition() {
+  sidebarPanelEl.style.top = `${followUi.currentTop}px`;
+  sidebarPanelEl.style.left = `${followUi.currentLeft}px`;
+}
+
+function scheduleFollowUpdate() {
+  if (!followUi.enabled) {
+    return;
+  }
+  if (followUi.frame) {
+    return;
+  }
+  followUi.frame = requestAnimationFrame(updateFollowPosition);
+}
+
+function updateFollowPosition() {
+  followUi.frame = null;
+  if (!followUi.enabled) {
+    return;
+  }
+
+  const target = computeFollowTarget();
+  followUi.targetTop = target.top;
+  followUi.targetLeft = target.left;
+
+  followUi.currentTop += (followUi.targetTop - followUi.currentTop) * FOLLOW_EASE;
+  followUi.currentLeft += (followUi.targetLeft - followUi.currentLeft) * FOLLOW_EASE;
+  applyFollowPosition();
+
+  const settling =
+    Math.abs(followUi.currentTop - followUi.targetTop) > 0.5 ||
+    Math.abs(followUi.currentLeft - followUi.targetLeft) > 0.5;
+
+  if (settling) {
+    scheduleFollowUpdate();
+  }
+}
+
+function setFollowEnabled(enabled) {
+  followUi.enabled = enabled;
+  sidebarPanelEl.classList.toggle("is-following", enabled);
+
+  if (!enabled) {
+    if (followUi.frame) {
+      cancelAnimationFrame(followUi.frame);
+      followUi.frame = null;
+    }
+    sidebarPanelEl.style.top = "";
+    sidebarPanelEl.style.left = "";
+    return;
+  }
+
+  const target = computeFollowTarget();
+  followUi.currentTop = target.top;
+  followUi.currentLeft = target.left;
+  followUi.targetTop = target.top;
+  followUi.targetLeft = target.left;
+  applyFollowPosition();
+  syncDetailPanelSlot();
+}
+
+function initDetailFollow() {
+  const onLayoutChange = () => {
+    setFollowEnabled(DESKTOP_MQ.matches);
+    syncDetailPanelSlot();
+  };
+
+  DESKTOP_MQ.addEventListener("change", onLayoutChange);
+  window.addEventListener("scroll", scheduleFollowUpdate, { passive: true });
+  window.addEventListener("resize", onLayoutChange, { passive: true });
+
+  new ResizeObserver(() => syncDetailPanelSlot()).observe(sidebarPanelEl);
+
+  onLayoutChange();
 }
 
 function escapeHtml(value) {
@@ -491,9 +887,11 @@ function escapeHtml(value) {
 function setRows(rows) {
   state.rows = rows;
   state.selectedWord = rows[0]?.word ?? null;
+  state.roomWords = [];
   resetDetailShell();
   statusEl.textContent = `Loaded ${rows.length} words`;
   applyFilters();
+  renderLightRoom();
 }
 
 async function loadDefaultCsv() {
@@ -535,3 +933,5 @@ fileInputEl.addEventListener("change", async (event) => {
 });
 
 loadDefaultCsv();
+initDetailFollow();
+initLightRoom();

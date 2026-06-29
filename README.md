@@ -15,6 +15,7 @@ A local emotion lexicon built from two research datasets, plus a browser viewer 
 | `emotion_lexicon.csv` | Earlier dair-only lexicon (reference) |
 | `viewer/` | Vanilla JS hexagon visualizer for the lexicon |
 | `docs/dataset-processing.md` | How each dataset is processed and merged |
+| `docs/room-light-strategies.md` | Room light weighting strategies for the viewer |
 
 ## Quick start
 

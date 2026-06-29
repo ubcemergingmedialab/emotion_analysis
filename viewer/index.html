@@ -38,9 +38,39 @@
   </section>
 
   <main class="layout">
-    <aside class="detail-panel" id="detail-panel">
-      <p class="placeholder">Select a word from the grid or search to inspect its emotion hexagon.</p>
-    </aside>
+    <div class="detail-column">
+      <div class="detail-panel-slot" id="detail-panel-slot" aria-hidden="true"></div>
+      <div class="sidebar-panel" id="sidebar-panel">
+        <aside class="detail-panel" id="detail-panel">
+          <p class="placeholder">Select a word from the grid or search to inspect its emotion hexagon.</p>
+        </aside>
+        <section class="light-room" id="light-room" aria-label="Room light preview">
+          <div class="light-room-header">
+            <div class="light-room-heading">
+              <h2 class="light-room-title">Room lights</h2>
+              <label class="light-strategy-label">
+                Strategy
+                <select id="light-strategy" class="light-strategy-select" aria-label="Light update strategy"></select>
+              </label>
+            </div>
+            <p class="light-room-hint" id="light-strategy-summary">Click words in the grid to add or remove them from the room.</p>
+          </div>
+          <div class="light-grid" id="light-grid"></div>
+          <div class="light-room-footer">
+            <div class="word-tray-wrap">
+              <div class="word-tray-header">
+                <h3 class="word-tray-title">Selected words</h3>
+                <button type="button" class="clear-room-btn" id="clear-room" disabled>Clear all</button>
+              </div>
+              <div class="word-tray" id="word-tray">
+                <p class="word-tray-empty">No words in the room yet.</p>
+              </div>
+            </div>
+            <div class="blend-readout" id="blend-readout"></div>
+          </div>
+        </section>
+      </div>
+    </div>
     <div class="grid-wrap">
       <div id="grid" class="grid"></div>
     </div>
@@ -50,6 +80,7 @@
     <span id="status">Loading lexicon…</span>
   </footer>
 
+  <script src="light-strategies.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

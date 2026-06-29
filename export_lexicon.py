@@ -45,6 +45,62 @@ SKIP_WORDS = {
     "may", "might", "about", "for", "and", "its", "completely",
 }
 
+CONNECTING_WORDS = (
+    "a",
+    "am",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "been",
+    "being",
+    "but",
+    "by",
+    "did",
+    "do",
+    "does",
+    "for",
+    "from",
+    "had",
+    "has",
+    "have",
+    "he",
+    "her",
+    "him",
+    "his",
+    "i",
+    "in",
+    "is",
+    "it",
+    "its",
+    "me",
+    "my",
+    "of",
+    "on",
+    "or",
+    "our",
+    "she",
+    "so",
+    "that",
+    "the",
+    "their",
+    "them",
+    "these",
+    "they",
+    "this",
+    "those",
+    "to",
+    "us",
+    "was",
+    "we",
+    "were",
+    "with",
+    "you",
+    "your",
+)
+
 MANUAL_WORDS: dict[str, str] = {
     "happy": "joy",
     "glad": "joy",
@@ -169,6 +225,41 @@ def source_label(dair_occurrences: int, borealis_occurrences: int) -> str:
     return "borealis"
 
 
+def connecting_word_rows() -> list[dict[str, object]]:
+    score = round(1 / len(EMOTIONS), 4)
+    rows: list[dict[str, object]] = []
+
+    for word in CONNECTING_WORDS:
+        rows.append(
+            {
+                "Word": word,
+                "Joy": score,
+                "Sadness": score,
+                "Anger": score,
+                "Fear": score,
+                "Love": score,
+                "Surprise": score,
+                "PrimaryEmotion": "joy",
+                "Confidence": score,
+                "Occurrences": 0,
+                "DairOccurrences": 0,
+                "BorealisOccurrences": 0,
+                "Sources": "connecting",
+                "Valence": 0.5,
+                "Arousal": 0.3,
+                "Dominance": 0.5,
+            }
+        )
+
+    return rows
+
+
+def append_connecting_words(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    existing = {str(row["Word"]) for row in rows}
+    extra = [row for row in connecting_word_rows() if row["Word"] not in existing]
+    return rows + sorted(extra, key=lambda row: str(row["Word"]))
+
+
 def build_rows(
     stats: dict[str, WordStats],
     min_occurrences: int,
@@ -243,6 +334,7 @@ def export_merged_lexicon(
         extract_borealis_counts(borealis_df),
     )
     rows = build_rows(merged_stats, min_occurrences, min_confidence, max_words)
+    rows = append_connecting_words(rows)
     lexicon = pd.DataFrame(rows)
     lexicon.to_csv(output_path, index=False)
     return lexicon
