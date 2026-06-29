@@ -260,6 +260,33 @@ def append_connecting_words(rows: list[dict[str, object]]) -> list[dict[str, obj
     return rows + sorted(extra, key=lambda row: str(row["Word"]))
 
 
+LEGACY_COLUMNS = (
+    "Word",
+    "Joy",
+    "Sadness",
+    "Anger",
+    "Fear",
+    "Love",
+    "Surprise",
+    "PrimaryEmotion",
+    "Confidence",
+    "Occurrences",
+)
+
+
+def append_connecting_to_legacy_lexicon(path: Path) -> int:
+    if not path.exists():
+        return 0
+
+    df = pd.read_csv(path)
+    connecting = pd.DataFrame(connecting_word_rows())[list(LEGACY_COLUMNS)]
+    df = df[~df["Word"].isin(connecting["Word"])]
+    combined = pd.concat([df, connecting], ignore_index=True)
+    combined = combined.sort_values("Word", key=lambda series: series.str.lower())
+    combined.to_csv(path, index=False)
+    return len(connecting)
+
+
 def build_rows(
     stats: dict[str, WordStats],
     min_occurrences: int,
@@ -377,7 +404,14 @@ def main() -> None:
         max_words=args.max_words or None,
     )
 
+    legacy_path = root / "emotion_lexicon.csv"
+    legacy_added = append_connecting_to_legacy_lexicon(legacy_path)
+    connecting_count = int((lexicon["Sources"] == "connecting").sum())
+
     print(f"Wrote {len(lexicon)} words to {args.output}")
+    print(f"Connecting words in merged lexicon: {connecting_count}")
+    if legacy_added:
+        print(f"Updated {legacy_path.name} with {legacy_added} connecting words")
     print()
     print("Sources:")
     print(lexicon["Sources"].value_counts().to_string())

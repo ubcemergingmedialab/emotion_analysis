@@ -32,17 +32,26 @@ This reads `dair/merged_training.pkl` and `borealis/CR4NarrEmote_t1Yes.csv`, the
 
 ### 2. Run the viewer locally
 
-The viewer loads the CSV over HTTP, so it needs a local web server (opening `index.html` directly will not auto-load the file).
+The viewer loads the CSV over HTTP. **Use the serve script** so the lexicon is copied beside the viewer and paths resolve correctly:
 
-From the **repository root**:
-
-```bash
-python -m http.server 8765
+```powershell
+.\scripts\serve-viewer.ps1
 ```
 
-Then open: **http://localhost:8765/viewer/**
+Then open: **http://localhost:8765/**
 
-The viewer auto-loads `merged_emotion_lexicon.csv`, falling back to `emotion_lexicon.csv` if the merged file is missing.
+You should see **614 words (53 connecting)** in the footer. If you see **561 words** and no connecting note, the CSV is stale — run `python export_lexicon.py` first.
+
+Alternative (GitHub Pages layout):
+
+```powershell
+.\scripts\build-pages.ps1
+python -m http.server 8765 --directory pages
+```
+
+Then open: **http://localhost:8765/**
+
+**Avoid** running `python -m http.server` from inside `viewer/` without copying the CSV — Python blocks `../` paths and you may get an old or missing lexicon.
 
 ### GitHub Pages
 

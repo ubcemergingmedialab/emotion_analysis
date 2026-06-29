@@ -665,13 +665,32 @@ function updateDetailBars(values) {
   }
 }
 
+const CONNECTING_SCORE = 1 / 6;
+
+function isConnectingWord(row) {
+  if (row.sources === "connecting") {
+    return true;
+  }
+  return row.occurrences === 0 && Math.abs(row.confidence - CONNECTING_SCORE) < 0.002;
+}
+
+function matchesCategoryFilter(row, filter) {
+  if (!filter) {
+    return true;
+  }
+  if (filter === "connecting") {
+    return isConnectingWord(row);
+  }
+  return row.primaryEmotion === filter;
+}
+
 function applyFilters() {
   const query = searchEl.value.trim().toLowerCase();
   const emotion = emotionFilterEl.value;
 
   let rows = state.rows.filter((row) => {
     const matchesQuery = !query || row.word.toLowerCase().includes(query);
-    const matchesEmotion = !emotion || row.primaryEmotion === emotion;
+    const matchesEmotion = matchesCategoryFilter(row, emotion);
     return matchesQuery && matchesEmotion;
   });
 
@@ -717,7 +736,7 @@ function renderGrid() {
     card.insertAdjacentHTML(
       "beforeend",
       `<p class="card-word">${escapeHtml(row.word)}</p>
-       <p class="card-tag">${escapeHtml(row.primaryEmotion)} · ${Math.round(row.confidence * 100)}%</p>
+       <p class="card-tag">${escapeHtml(isConnectingWord(row) ? "connecting" : row.primaryEmotion)} · ${Math.round(row.confidence * 100)}%</p>
        ${roomBadge}`,
     );
 
@@ -778,20 +797,25 @@ function syncDetailPanelSlot() {
   scheduleFollowUpdate();
 }
 
-function computeFollowTarget() {
+function followMaxHeightFor(top) {
   const footer = document.querySelector(".footer");
-  const slotRect = detailPanelSlotEl.getBoundingClientRect();
-  const panelHeight = sidebarPanelEl.offsetHeight;
   const footerTop = footer.getBoundingClientRect().top;
+
+  return Math.max(
+    160,
+    Math.min(
+      window.innerHeight - top - FOLLOW_MARGIN,
+      footerTop - top - FOLLOW_MARGIN,
+    ),
+  );
+}
+
+function computeFollowLayout() {
+  const slotRect = detailPanelSlotEl.getBoundingClientRect();
 
   let targetTop = slotRect.top;
   if (targetTop < FOLLOW_MARGIN) {
     targetTop = FOLLOW_MARGIN;
-  }
-
-  const maxTop = footerTop - panelHeight - FOLLOW_MARGIN;
-  if (targetTop > maxTop) {
-    targetTop = Math.max(FOLLOW_MARGIN, maxTop);
   }
 
   return {
@@ -803,6 +827,7 @@ function computeFollowTarget() {
 function applyFollowPosition() {
   sidebarPanelEl.style.top = `${followUi.currentTop}px`;
   sidebarPanelEl.style.left = `${followUi.currentLeft}px`;
+  sidebarPanelEl.style.maxHeight = `${followMaxHeightFor(followUi.currentTop)}px`;
 }
 
 function scheduleFollowUpdate() {
@@ -821,7 +846,7 @@ function updateFollowPosition() {
     return;
   }
 
-  const target = computeFollowTarget();
+  const target = computeFollowLayout();
   followUi.targetTop = target.top;
   followUi.targetLeft = target.left;
 
@@ -849,10 +874,11 @@ function setFollowEnabled(enabled) {
     }
     sidebarPanelEl.style.top = "";
     sidebarPanelEl.style.left = "";
+    sidebarPanelEl.style.maxHeight = "";
     return;
   }
 
-  const target = computeFollowTarget();
+  const target = computeFollowLayout();
   followUi.currentTop = target.top;
   followUi.currentLeft = target.left;
   followUi.targetTop = target.top;
@@ -884,12 +910,21 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function setRows(rows) {
+function countConnectingWords(rows) {
+  return rows.filter(isConnectingWord).length;
+}
+
+function setRows(rows, sourcePath = "") {
   state.rows = rows;
   state.selectedWord = rows[0]?.word ?? null;
   state.roomWords = [];
   resetDetailShell();
-  statusEl.textContent = `Loaded ${rows.length} words`;
+  const connectingCount = countConnectingWords(rows);
+  const connectingNote =
+    connectingCount > 0 ? ` (${connectingCount} connecting)` : " (no connecting words — re-run export_lexicon.py)";
+  statusEl.textContent = sourcePath
+    ? `Loaded ${rows.length} words${connectingNote} from ${sourcePath}`
+    : `Loaded ${rows.length} words${connectingNote}`;
   applyFilters();
   renderLightRoom();
 }
@@ -904,20 +939,21 @@ async function loadDefaultCsv() {
 
   for (const path of candidates) {
     try {
-      const response = await fetch(path);
+      const response = await fetch(path, { cache: "no-store" });
       if (!response.ok) {
         continue;
       }
       const text = await response.text();
-      setRows(parseCsv(text));
-      statusEl.textContent = `Loaded ${state.rows.length} words from ${path}`;
+      const rows = parseCsv(text);
+      setRows(rows, path);
       return;
     } catch {
       // try next path or fall back to file picker
     }
   }
 
-  statusEl.textContent = "Could not auto-load CSV — use “Load CSV” or run a local server from the repo root.";
+  statusEl.textContent =
+    "Could not auto-load CSV — run scripts/serve-viewer.ps1 from the repo root, or use Load CSV.";
 }
 
 searchEl.addEventListener("input", applyFilters);
@@ -930,8 +966,7 @@ fileInputEl.addEventListener("change", async (event) => {
     return;
   }
   const text = await file.text();
-  setRows(parseCsv(text));
-  statusEl.textContent = `Loaded ${state.rows.length} words from ${file.name}`;
+  setRows(parseCsv(text), file.name);
 });
 
 loadDefaultCsv();

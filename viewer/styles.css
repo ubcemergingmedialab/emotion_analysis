@@ -133,7 +133,7 @@ h1 {
   max-height: calc(100vh - 24px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  will-change: top, left;
+  will-change: top, left, max-height;
 }
 
 .detail-panel {
@@ -528,6 +528,8 @@ h1 {
 }
 
 .footer {
+  position: relative;
+  z-index: 6;
   padding: 0.6rem 1.5rem;
   border-top: 1px solid var(--border);
   background: var(--surface);
