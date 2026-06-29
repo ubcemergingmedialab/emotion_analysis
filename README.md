@@ -44,6 +44,28 @@ Then open: **http://localhost:8765/viewer/**
 
 The viewer auto-loads `merged_emotion_lexicon.csv`, falling back to `emotion_lexicon.csv` if the merged file is missing.
 
+### GitHub Pages
+
+The site is published from the **`pages/`** folder (built in CI, not `docs/`). On push to `main`, the [Deploy GitHub Pages](.github/workflows/deploy-pages.yml) workflow copies `viewer/` plus the lexicon CSVs into `pages/` and deploys them.
+
+**One-time repo setup:** Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+
+Preview the same output locally:
+
+```bash
+bash scripts/build-pages.sh
+python -m http.server 8765 --directory pages
+```
+
+On Windows (PowerShell):
+
+```powershell
+.\scripts\build-pages.ps1
+python -m http.server 8765 --directory pages
+```
+
+Then open: **http://localhost:8765/**
+
 **Without a server:** open `viewer/index.html` in a browser and use **Load CSV** to pick a lexicon file manually.
 
 ### 3. Viewer features

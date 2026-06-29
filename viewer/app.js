@@ -896,6 +896,8 @@ function setRows(rows) {
 
 async function loadDefaultCsv() {
   const candidates = [
+    "merged_emotion_lexicon.csv",
+    "emotion_lexicon.csv",
     "../merged_emotion_lexicon.csv",
     "../emotion_lexicon.csv",
   ];
